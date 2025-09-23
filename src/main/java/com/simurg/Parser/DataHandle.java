@@ -54,12 +54,12 @@ public static Item completeItem(HtmlTableRow row, Item item){
  //TODO TYPRE ITEMNAME
  return new Item(pharmName,cityName,address,price,"ItemName", amount, MyDate.getCurrentDate(),"TYPE",isIndicated);
 }
-public static void completeItemFromTable(HtmlTable table,Item item){
- List<HtmlTableBody> bodies= Parser.getTBodies(table);
-  List<HtmlTableRow> rows=Parser.getRowsFromFirstBody(bodies);
-
-
-}
+//public static void completeItemFromTable(HtmlTable table,Item item){
+// List<HtmlTableBody> bodies= Parser.getTBodies(table);
+//  List<HtmlTableRow> rows=Parser.getRowsFromFirstBody(bodies);
+//
+//
+//}
 public static String getTypeFromStr(String type){
         return type.replaceAll("\\s*(Без)","");
     }
