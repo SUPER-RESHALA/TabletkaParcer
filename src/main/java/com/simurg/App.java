@@ -39,33 +39,32 @@ public class App
       // HtmlTableFooter footer= Parser.getTFooter(table);
        List<HtmlTableRow> hRows= Parser.getTHeadRows(header);
          //   List<HtmlTableRow> fRows= Parser.getTFooterRows(footer);
-            int count=0;
-           for(HtmlTableRow row:hRows){
-               System.out.println("================");
-               System.out.print(row.getTextContent());
-               System.out.println("()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()");
-               count++;
-           }
+//            int count=0;
+//           for(HtmlTableRow row:hRows){
+//               System.out.println("================");
+//               System.out.print(row.getTextContent());
+//               System.out.println("()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()()");
+//               count++;
+//           }
             System.out.println("--------------------------------------------------"+newPage.getUrl());
 List<HtmlTableBody> bodies = table.getBodies();
             System.out.println("BODY "+ bodies.size());
             List<HtmlTableRow> groups=bodies.get(0).getRows();
             System.out.println("GROUPS "+ bodies.size());
          // for (HtmlTableRow row:groups){
-              String s= groups.get(0).getTextContent();
-
-              List<HtmlTableCell> cells= groups.get(0).getCells();
-              for (HtmlTableCell cell:cells){
-                  System.out.println(cell.getTextContent());
-                  System.out.println("+=++==+==+++++===++==++==+==+==++=++GHGHGHGHHGHGHGHGHGHGHGHG");
-              }
+        List<HtmlTableCell> cells= groups.get(0).getCells();
+            System.out.println(groups.get(0).getCell(1).getTextContent()+"//////////ХУЕЧЕК////////////"+groups.get(0).getCell(2).getTextContent());
+//              for (HtmlTableCell cell:cells){
+//                  System.out.println(cell.getTextContent());
+//                  System.out.println("+=++==+==+++++===++==++==+==+==++=++GHGHGHGHHGHGHGHGHGHGHGHG");
+//              }
 HtmlAnchor anchor = cells.get(1).getFirstByXPath(".//a");
             System.out.println("ANCHOR: "+ anchor);
           //   table.get("/html/body/main/div[2]/div[2]/table[1]/tbody/tr/td[5]/span[2]/a");
          //  DomNode d= cells.get(cells.size()-1).getFirstByXPath("/html/body/main/div[2]/div[2]/table[1]/tbody/tr/td[5]/span[2]/a");
          HtmlTable newTable=  Parser.getTableFromAnchor(anchor);
        List< HtmlTableBody> bod= Parser.getTBodies(newTable);
-      List<HtmlTableRow> mainRows=  Parser.getRowsFromBodies(bod);
+      List<HtmlTableRow> mainRows=  Parser.getRowsFromFirstBody(bod);//as/dasd
             Set<List<HtmlTableCell>> dataCells= Parser.getTCells(mainRows);
             for (List<HtmlTableCell> cells1 :dataCells){
                 System.out.println(

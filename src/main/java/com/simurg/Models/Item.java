@@ -24,4 +24,9 @@ public class Item {
         this.type = type;
         this.isIndicated = isIndicated;
     }
+
+    public Item(String itemName, String type) {
+        this.itemName = itemName;
+        this.type = type;
+    }
 }

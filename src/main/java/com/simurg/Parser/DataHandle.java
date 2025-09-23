@@ -16,13 +16,33 @@ public class DataHandle {
     public  static Pattern packPattern = Pattern.compile("(\\d+)\\s+упаков");
    public static Pattern cityPattern = Pattern.compile("^(.*?)(,|-)");
     public static List<HtmlAnchor> getAnchorsFromCells(Set <List<HtmlTableCell>> tCells){
-    List<HtmlAnchor> list1= new ArrayList<>();
+    List<HtmlAnchor> newList= new ArrayList<>();
     for (List<HtmlTableCell> list:tCells){
-      list.add(list.get(1).getFirstByXPath(anchorXpath));
+      newList.add(list.get(1).getFirstByXPath(anchorXpath));
     }
-    return list1;
+    return newList;
 }
-public static Item getItemFromRow(HtmlTableRow row){
+    public static List<HtmlAnchor> getAnchorsFromRows(List<HtmlTableRow> rows){
+        List<HtmlAnchor> newList= new ArrayList<>();
+        for (HtmlTableRow row:rows){
+            newList.add(row.getCell(1).getFirstByXPath(anchorXpath));
+        }
+        return newList;
+    }
+public  static Item getItemFromRow(HtmlTableRow row){
+       String name= getItemNameFromStr(row.getCell(1).getTextContent());
+    String type=getTypeFromStr(row.getCell(2).getTextContent());
+    return new Item(name,type);
+}
+    public static List<Item> getItemsFromRows(List<HtmlTableRow> tRows){
+        List<Item> newList= new ArrayList<>();
+        for (HtmlTableRow row:tRows){
+          newList.add(getItemFromRow(row));
+        }
+        return newList;
+    }
+    ///I know that this name is p.o.s// item from getItemsFromRows
+public static Item completeItem(HtmlTableRow row, Item item){
     String pharmName= getNameFromStr( row.getCell(1).getTextContent());
     String addressCell= row.getCell(2).getTextContent();
     String priceCell= row.getCell(5).getTextContent();
@@ -34,12 +54,18 @@ public static Item getItemFromRow(HtmlTableRow row){
  //TODO TYPRE ITEMNAME
  return new Item(pharmName,cityName,address,price,"ItemName", amount, MyDate.getCurrentDate(),"TYPE",isIndicated);
 }
-public static void getItemFromTable(HtmlTable table){
+public static void completeItemFromTable(HtmlTable table,Item item){
  List<HtmlTableBody> bodies= Parser.getTBodies(table);
-  List<HtmlTableRow> rows=Parser.getRowsFromBodies(bodies);
- Set<List<HtmlTableCell>> cells= Parser.getTCells(rows);
+  List<HtmlTableRow> rows=Parser.getRowsFromFirstBody(bodies);
+
 
 }
+public static String getTypeFromStr(String type){
+        return type.replaceAll("\\s*(Без)","");
+    }
+public static String getItemNameFromStr(String name){
+        return name.replaceAll("\\s*(Разное)","");
+    }
 public static String getNameFromStr(String pharmacyName){
 return  pharmacyName.replaceAll("\\s*Обновлено*", "");
 }
@@ -53,8 +79,8 @@ public static Double getPriceFromStr(String price){
     }
     return null;
 }
-    public static String getCityFromStr(String cityStr){
-        Matcher matcher= pricePattern.matcher(cityStr);
+public static String getCityFromStr(String cityStr){
+        Matcher matcher= cityPattern.matcher(cityStr);
         if (matcher.find()){
             return    matcher.group(1);
         }
