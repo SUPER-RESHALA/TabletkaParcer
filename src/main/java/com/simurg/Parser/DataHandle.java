@@ -1,6 +1,7 @@
 package com.simurg.Parser;
 
 import com.simurg.Models.Item;
+import com.simurg.Models.Pharmacy;
 import com.simurg.Utils.MyDate;
 import org.htmlunit.html.*;
 
@@ -14,7 +15,7 @@ public class DataHandle {
     public static final String anchorXpath=".//a";
     public static Pattern pricePattern=Pattern.compile("(\\d+[.,]?\\d*)\\s*р");
     public  static Pattern packPattern = Pattern.compile("(\\d+)\\s+упаков");
-   public static Pattern cityPattern = Pattern.compile("^(.*?)(,|-)");
+   public static Pattern cityPattern = Pattern.compile("^(.*?)(,|\\-|—)");
     public static List<HtmlAnchor> getAnchorsFromCells(Set <List<HtmlTableCell>> tCells){
     List<HtmlAnchor> newList= new ArrayList<>();
     for (List<HtmlTableCell> list:tCells){
@@ -41,36 +42,63 @@ public  static Item getItemFromRow(HtmlTableRow row){
         }
         return newList;
     }
-    ///I know that this name is p.o.s// item from getItemsFromRows
-public static Item completeItem(HtmlTableRow row, Item item){
+//    ///I know that this name is p.o.s// item from getItemsFromRows
+//public static Item completeItem(HtmlTableRow row, Item item){
+//    String pharmName= getNameFromStr( row.getCell(1).getTextContent());
+//    String addressCell= row.getCell(2).getTextContent();
+//    String priceCell= row.getCell(5).getTextContent();
+//    String address=getAddressFromStr(addressCell);
+//    String cityName=getCityFromStr(addressCell);
+//   Double price =getPriceFromStr(priceCell);
+// Integer amount=getAmountFromStr(priceCell);
+// Boolean isIndicated=price!=null;
+// //TODO TYPRE ITEMNAME
+// return new Item(pharmName,cityName,address,price,"ItemName", amount, MyDate.getCurrentDate(),"TYPE",isIndicated);
+//}
+
+public static Pharmacy getPharmacyFromRow(HtmlTableRow row){
     String pharmName= getNameFromStr( row.getCell(1).getTextContent());
     String addressCell= row.getCell(2).getTextContent();
     String priceCell= row.getCell(5).getTextContent();
     String address=getAddressFromStr(addressCell);
     String cityName=getCityFromStr(addressCell);
    Double price =getPriceFromStr(priceCell);
- Integer amount=getAmountFromStr(priceCell);
- Boolean isIndicated=price!=null;
- //TODO TYPRE ITEMNAME
- return new Item(pharmName,cityName,address,price,"ItemName", amount, MyDate.getCurrentDate(),"TYPE",isIndicated);
+    Integer amount=getAmountFromStr(priceCell);
+ Boolean isIndicated=price==null;
+   return new Pharmacy(pharmName, cityName, address,price,amount,isIndicated);
 }
-//public static void completeItemFromTable(HtmlTable table,Item item){
-// List<HtmlTableBody> bodies= Parser.getTBodies(table);
-//  List<HtmlTableRow> rows=Parser.getRowsFromFirstBody(bodies);
-//
-//
-//}
+public static List<Pharmacy> getPharmaciesFromRows(List<HtmlTableRow> rows){
+        List<Pharmacy> pharmacies = new ArrayList<>();
+        for (HtmlTableRow row:rows){
+           pharmacies.add(getPharmacyFromRow(row));
+        }
+        return pharmacies;
+    }
+    public static List<List<Pharmacy>> getPharmFromTables(List<HtmlTable> tables){
+        List<List<Pharmacy>> allPharma= new ArrayList<>();
+        for (HtmlTable table:tables){
+           HtmlTableBody body = Parser.getFirstTBody(table);
+          List<HtmlTableRow> rows= Parser.getRowsFromFirstBody(body);
+         allPharma.add(getPharmaciesFromRows(rows));
+        }
+        return allPharma;
+    }
+    public static void addPharmaToItem(List<Item> items,List <List<Pharmacy>> pharma){
+        for (int i=0;i<items.size();i++){
+            items.get(i).setPharma(pharma.get(i));
+        }
+    }
 public static String getTypeFromStr(String type){
-        return type.replaceAll("\\s*(Без)","");
+       return type.replaceAll("\\s*(Без)*","");
     }
 public static String getItemNameFromStr(String name){
         return name.replaceAll("\\s*(Разное)","");
     }
 public static String getNameFromStr(String pharmacyName){
-return  pharmacyName.replaceAll("\\s*Обновлено*", "");
+    return pharmacyName.replaceAll("\\s*Обновлено.*", "");
 }
 public static String getAddressFromStr(String pharmAddress){
-        return  pharmAddress.replaceAll("\\s*(Открыто|Закрыто|Круглосуточно)", "");
+        return pharmAddress.replaceAll("\\s*(Открыто|Закрыто|Круглосуточно).*", "");
     }
 public static Double getPriceFromStr(String price){
     Matcher matcher= pricePattern.matcher(price);
@@ -80,9 +108,9 @@ public static Double getPriceFromStr(String price){
     return null;
 }
 public static String getCityFromStr(String cityStr){
-        Matcher matcher= cityPattern.matcher(cityStr);
+        Matcher matcher= cityPattern.matcher(cityStr.trim());
         if (matcher.find()){
-            return    matcher.group(1);
+            return  matcher.group(1);
         }
         return "Unknown";
     }
@@ -92,7 +120,4 @@ if (matcher.find()){
     return Integer.parseInt(matcher.group(1));}
 return null;
 }
-//public static List<Item> getItemsFromTables(List<HtmlTable> tables){
-//
-//}
 }
