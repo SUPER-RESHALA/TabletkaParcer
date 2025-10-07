@@ -22,9 +22,7 @@ import static com.simurg.Config.AppConfig.NAME_LINK;
 
 public class Parser {
     public static String baseUrl = "";
-    //base url одна косая в конце /
-    // search url берется без косой вначале
-    //  result вначале с косой и получается двойная "https://tabletka.by//result...
+    
 
     public static  String  getCsrf(Document document){
         return  document.select("meta[name=csrf-token]").attr("content");
