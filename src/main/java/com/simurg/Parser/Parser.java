@@ -1,192 +1,190 @@
 package com.simurg.Parser;
 
+import com.simurg.Config.AppConfig;
 import com.simurg.Models.Item;
 import com.simurg.Models.Pharmacy;
-import org.htmlunit.BrowserVersion;
-import org.htmlunit.SilentCssErrorHandler;
-import org.htmlunit.WebClient;
-import org.htmlunit.html.*;
-import org.htmlunit.javascript.SilentJavaScriptErrorListener;
+import com.simurg.Models.Region;
+import com.simurg.Models.SessionData;
+import com.simurg.Network.Request;
+import org.json.JSONObject;
+import org.jsoup.Connection;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
-import javax.xml.crypto.Data;
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static com.simurg.Config.AppConfig.LOAD_PAGE_LINK;
+import static com.simurg.Config.AppConfig.NAME_LINK;
 
 public class Parser {
-    public static String url = "https://tabletka.by/";
-    public static String inputXpath = "//input[contains(@class, 'ls-select-input')]";
-    public static String regXpath = "//ul[contains(@class, 'select-check-list') and contains(@class, 'region-select-list')]";
-    public static String submitXpath = "//button[contains(@class, 'header-search-bttn')]";
-    public static String resultTableXpath = "//table[@class='table-border']";
+    public static String baseUrl = "";
+    //base url одна косая в конце /
+    // search url берется без косой вначале
+    //  result вначале с косой и получается двойная "https://tabletka.by//result...
 
-    public static void connect() {
-        try (final WebClient webClient = new WebClient(BrowserVersion.CHROME)) {
+    public static  String  getCsrf(Document document){
+        return  document.select("meta[name=csrf-token]").attr("content");
+    }
+    public static Document getPharmTable(Connection.Response response){
+        JSONObject obj = new JSONObject(response.body());
+        String html = obj.getString("data");
+        return Jsoup.parse(html);
+    }
+    public static List<Pharmacy> pharmaciesFromTable(Document table){
+        List<Pharmacy> pharma= new ArrayList<>();
+        table.select("tr.tr-border").forEach(row -> pharma.add(getPharmFromRow(row)));
+        return pharma;
+        }
+        public static Pharmacy getPharmFromRow(Element row){
+            String pharmName = row.selectFirst("td.pharm-name a") != null
+                    ? row.selectFirst("td.pharm-name a").text()
+                    : "";
+            String address = row.selectFirst("td.address .tooltip-info-header span") != null
+                    ? row.selectFirst("td.address .tooltip-info-header span").text()
+                    : "";
+            String city=DataHandle.parseCity(address);
+            String price = row.selectFirst("td.price .price-value") != null
+                    ? row.selectFirst("td.price .price-value").text()
+                    : "";
+            Double truePrice=DataHandle.parsePrice(price);
+            String packs = row.selectFirst("td.price .capture") != null
+                    ? row.selectFirst("td.price .capture").text()
+                    : "";
+            Integer amount=DataHandle.parseAmount(packs);
+            boolean isIndicated=!packs.isEmpty();
+//TODO Сделать подсчет общего количества
+//            int sum = 0;
+//            for (Element td : row.select("td.price .tooltip-info-table-tr")) {
+//                String digits = td.select(".tooltip-info-table-td").get(1).text().replaceAll("[^0-9]", "");
+//                if (!digits.isEmpty()) {
+//                    sum += Integer.parseInt(digits);
+//                }
+//            }
+//            if (sum == 0) {
+// Пропуск
+//            }
+              return new Pharmacy(pharmName,city,address,truePrice,amount,isIndicated);
+        }
 
-            Logger.getLogger("com.gargoylesoftware.htmlunit").setLevel(Level.OFF);
-            Logger.getLogger("org.htmlunit").setLevel(Level.OFF);
-            Logger.getLogger("org.apache.http").setLevel(Level.OFF);
-            webClient.setJavaScriptErrorListener(new SilentJavaScriptErrorListener());
-            webClient.setCssErrorHandler(new SilentCssErrorHandler());
-            webClient.setHTMLParserListener(null); // или свой пустой listener
-            
-
-            webClient.getOptions().setThrowExceptionOnScriptError(false);
-
-            HtmlPage page = webClient.getPage(url);
-
-            HtmlElement input = Parser.getInputField(page);
-
-            HtmlElement cityItem = page.getFirstByXPath("//li[contains(@class, 'select-check-item') and normalize-space(text())='Барановичи']");
-
-            cityItem.click();
-
-            webClient.waitForBackgroundJavaScript(2000);
-
-            HtmlElement btn = Parser.getSubmitBtn(page);
-
-            input.type("Пессарий силиконовый кольцо 70 пессарии N1");
-
-            HtmlPage resultSearchPage = btn.click();
-
-            HtmlTable tableWResult = Parser.getTable(resultSearchPage);
-
-            List<HtmlTableBody> bodies = tableWResult.getBodies();
-
-            List<HtmlTableRow> resultRows = Parser.getRowsFromFirstBody(bodies);
-
-            List<Item> items = DataHandle.getItemsFromRows(resultRows);
-            List<HtmlAnchor> anchors = DataHandle.getAnchorsFromRows(resultRows);
-
-            List<HtmlTable> tables = getTablesFromAnchors(anchors);
-            List<List<Pharmacy>> pharma=DataHandle.getPharmFromTables(tables);
-            DataHandle.addPharmaToItem(items,pharma);
-            printItems(items);
+public static SessionData getSessionData(String url) throws IOException {
+    Connection.Response initResp = Jsoup.connect(baseUrl+url)
+            .method(Connection.Method.GET)
+            .execute();
+    Document doc = initResp.parse();
+    String csrf = getCsrf(doc);
+    Map<String, String> cookies = initResp.cookies();
+    String ls=DataHandle.parseLs(url);
+    return new SessionData(cookies,ls,csrf);
+}
+public static List<Pharmacy> pharmaciesFromUrl(String url, int page, String region) throws IOException {
+   SessionData data=getSessionData(url);
+   String ls=data.getLs();
+   String csrf= data.getCsrfToken();
+   Map<String,String> cookies= data.getCookies();
+   Connection.Response response= Request.loadPage(LOAD_PAGE_LINK,page,ls,region,csrf,cookies);
+   Document tableDoc = getPharmTable(response);
+   return pharmaciesFromTable(tableDoc);
+}
+    public static void jConnect(){
+        try {
+            String itemName="пессарий";
+            String region="0";
+            String searchUrl=DataHandle.createSearchUrl(itemName,region);
+           List<Item> items= getItemsFromUrl(searchUrl);
+            System.out.println(items.size());
+        //   items.get(0).printItem();
+           for (Item item:items){
+               addPharmaToItem(item,region);
+           }
+               for (Item item:items){
+                item.printItem();
+               }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
-public static void printItems(List<Item> items){
-        for (Item item:items){
-         item.printItem();
+    public static void addPharmaToItem(Item item, String regionNumber ) throws IOException {
+        int page=1;
+        List<Pharmacy> pharmacies= new ArrayList<>();
+       while (true){
+           List<Pharmacy> newPharm=pharmaciesFromUrl(item.getLink(),page,regionNumber);
+           if (newPharm.isEmpty()) break;
+           pharmacies.addAll(newPharm);
+           page++;
+       }
+       item.setPharma(pharmacies);
+    }
+    public static Item getItemFromRow(Element row){
+        Element nameTd = row.selectFirst(NAME_LINK);
+        //Item name
+        String name = nameTd != null ? nameTd.text() : "";
+        String link = nameTd != null ? nameTd.attr("href") : "";
+        // Форма выпуска
+        Element formTd = row.selectFirst(AppConfig.FORM_LINK);
+        String form = formTd != null ? formTd.text() : "";
+        // Производитель
+        Element producerTd = row.selectFirst(AppConfig.PRODUCER_LINK);
+        String producer = producerTd != null ? producerTd.text().trim() : "";
+        return new Item(name,form,producer,link);
+    }
+public static  List<Item> getItemsFromUrl(String searchUrl) throws IOException {
+        List<Item> items= new ArrayList<>();
+        Document doc= Jsoup.connect(baseUrl+searchUrl).get();
+        Element table= getItemTable(doc);
+        Elements rows= getItemRows(table);
+        for (Element row:rows){
+         items.add(getItemFromRow(row));
         }
+        return items;
 }
-    //     WebClient webClient;
-//    public void createWebClient(){
-//        if (webClient==null){
-//            webClient = new WebClient(BrowserVersion.CHROME);
-//        }
-//    }
-//    public void configureClient(WebClient webClient){
-//        webClient.getOptions().setThrowExceptionOnScriptError(false);
-//    }
-//    public void closeConnection(){
-//        if (webClient!=null){
-//            webClient.close();
-//            webClient=null;
-//        }
-//    }
-    public static HtmlElement getRegField(final HtmlPage page) {
-        return page.getFirstByXPath("//input[contains(@class, 'region-select-input')]");
-    }
 
-    public static List<String> getRegions(final HtmlPage page) throws IOException {
-        HtmlElement table1 = page.getFirstByXPath(regXpath);
-        List<String> regList = new ArrayList<>();
-        for (DomNode d : table1.getChildren()) {
-            regList.add(d.getTextContent());
-        }
-        return regList;
+    public static Elements getItemRows(Element table){
+        return    table.select(AppConfig.ITEM_ROWS);
     }
-
-    public static HtmlTableHeader getTHeader(HtmlTable table) {
-        return table.getHeader();
+    public static Element getItemTable(Document doc){
+     return   doc.getElementById(AppConfig.ITEM_TABLE_ID);
     }
-
-    public static List<HtmlTableRow> getTHeadRows(HtmlTableHeader header) {
-        return header.getRows();
-    }
-
-    public static HtmlTableFooter getTFooter(final HtmlTable table) {
-        return table.getFooter();
-    }
-
-    public static List<HtmlTableRow> getTFooterRows(final HtmlTableFooter footer) {
-        return footer.getRows();
-    }
-
-    public static HtmlTable getTable(final HtmlPage page) {
-        return page.getHtmlElementById("base-select");
-    }
-
-    public static HtmlTableBody getFirstTBody(final HtmlTable table) {
-        return table.getBodies().get(0);
-    }
-
-    public static List<HtmlTableBody> getTBodies(final HtmlTable table) {
-        return table.getBodies();
-    }
-
-    public static List<List<HtmlTableBody>> getAllTBodies(final List<HtmlTable> tables) {
-        List<HtmlTableBody> bodyOfOneT;
-        List<List<HtmlTableBody>> bodies = new ArrayList<>();
-        for (HtmlTable table : tables) {
-            bodyOfOneT = getTBodies(table);
-            bodies.add(bodyOfOneT);
-        }
-        return bodies;
-    }
-
-    public static List<HtmlTableBody> getFirstTBodies(final List<HtmlTable> tables) {
-        List<HtmlTableBody> bodies = new ArrayList<>();
-        for (HtmlTable table : tables) {
-            bodies.add(getFirstTBody(table));
-        }
-        return bodies;
-    }
-
-    public static List<HtmlTableRow> getRowsFromFirstBody(List<HtmlTableBody> bodies) {
-        return bodies.get(0).getRows();
-    }
-public static List<HtmlTableRow>  getRowsFromFirstBody(HtmlTableBody body){
-        return body.getRows();
+    public static List<Region> getRegions(Document doc){
+Elements elements =doc.select(".region-select-list .select-check-item");
+List<Region> regions= new ArrayList<>();
+for (Element element: elements){
+  String value=  element.attr("value");
+String name= element.text().trim();
+  regions.add(new Region(name,value));
 }
-    public static Set<List<HtmlTableCell>> getTCells(List<HtmlTableRow> rows) {
-        Set<List<HtmlTableCell>> set = new HashSet<>();
-        for (HtmlTableRow row : rows) {
-            set.add(row.getCells());
-        }
-        return set;
+return regions;
     }
 
-    public static HtmlTable getTableFromAnchor(HtmlAnchor anchor) throws IOException {
-        HtmlPage page = anchor.click();
-        return page.getFirstByXPath(resultTableXpath);
-    }
-
-    public static List<HtmlTable> getTablesFromAnchors(List<HtmlAnchor> anchors) throws IOException {
-        List<HtmlTable> tables = new ArrayList<>();
-        for (HtmlAnchor anchor : anchors) {
-            tables.add(getTableFromAnchor(anchor));
-        }
-        return tables;
-    }
-
-    public static HtmlElement getInputField(final HtmlPage page) {
-        return page.getFirstByXPath(inputXpath);
-    }
-
-    public static HtmlElement getSubmitBtn(final HtmlPage page) {
-        return page.getFirstByXPath(submitXpath);
-    }
 
     public String chooseRegion() {
 
         return "Region";
     }
 }
+//                // Суммируем упаковки из детализации внутри tooltip-info-table
+//                int totalPacks = 0;
+//                Elements batchRows = row.select("td.price .tooltip-info-table-tr");
+//                for (Element batch : batchRows) {
+//                    Elements cols = batch.select(".tooltip-info-table-td");
+//                    if (cols.size() >= 2) {
+//                        String countText = cols.get(1).text().trim(); // "5 упаковок"
+//                        // Убираем всё, что не цифра (включая пробелы, буквы, запятые)
+//                        String digits = countText.replaceAll("\\D+", ""); // лучше \\D+ чем [^0-9]
+//                        if (!digits.isEmpty()) {
+//                            try {
+//                                totalPacks += Integer.parseInt(digits);
+//                            } catch (NumberFormatException e) {
+//                                // на всякий случай — логируем и продолжаем
+//                                System.out.println("Не могу распарсить число из: '" + countText + "'");
+//                            }
+//                        }
+//                    }
+//                }
+//необязательные  .header("X-Requested-With", "XMLHttpRequest")(конкретно это обязательный)
+//.header("Accept", "application/json, text/javascript, */*; q=0.01")
+// .header("Referer", searchUrl)
+// .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36")

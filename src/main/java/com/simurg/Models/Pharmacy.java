@@ -18,8 +18,7 @@ public class Pharmacy {
     }
 public String getPharmaInfo(){
         String s= " Pname "+pharmacyName+"  city "+cityName+ "  Address "+pharmacyAddress+ " price "+price
-                +"  amount "+ amount+ "indicated "+ isIndicated;
-    // s.replaceAll("\\s","");
+                +"  amount "+ amount+ " indicated "+ isIndicated;
         return s;
 }
 
