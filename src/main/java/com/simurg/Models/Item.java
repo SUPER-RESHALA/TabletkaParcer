@@ -1,7 +1,12 @@
 package com.simurg.Models;
 
+import com.simurg.Parser.Parser;
+import com.simurg.Utils.MyDate;
+
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 public class Item {
     String itemName;
@@ -52,5 +57,10 @@ public void printPharma(){
         for (Pharmacy pharmacy:pharma){
             System.out.println(pharmacy.getPharmaInfo());
         }
+}
+public static Snapshot takeSnapshot(String itemName, String regionNumber) throws IOException {
+        LocalDateTime current= MyDate.getCurrentDate();
+        List<Item> items= Parser.collectItems(itemName,regionNumber);
+        return new Snapshot(current,items);
 }
 }

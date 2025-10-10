@@ -21,8 +21,8 @@ import static com.simurg.Config.AppConfig.LOAD_PAGE_LINK;
 import static com.simurg.Config.AppConfig.NAME_LINK;
 
 public class Parser {
-    public static String baseUrl = "";
-    
+    public static String baseUrl = "https://tabletka.by";
+
 
     public static  String  getCsrf(Document document){
         return  document.select("meta[name=csrf-token]").attr("content");
@@ -67,14 +67,20 @@ public class Parser {
 //            }
               return new Pharmacy(pharmName,city,address,truePrice,amount,isIndicated);
         }
-
+public static Connection connect(String url){
+        return Jsoup.connect(url);
+}
+public static Connection.Response getResponse(String url) throws IOException {
+        return connect(url)
+                .method(Connection.Method.GET)
+                .execute();
+}
 public static SessionData getSessionData(String url) throws IOException {
-    Connection.Response initResp = Jsoup.connect(baseUrl+url)
-            .method(Connection.Method.GET)
-            .execute();
+    Connection.Response initResp =  getResponse(baseUrl+url);
     Document doc = initResp.parse();
     String csrf = getCsrf(doc);
     Map<String, String> cookies = initResp.cookies();
+    cookies.put("lim-result", "100");
     String ls=DataHandle.parseLs(url);
     return new SessionData(cookies,ls,csrf);
 }
@@ -87,30 +93,25 @@ public static List<Pharmacy> pharmaciesFromUrl(String url, int page, String regi
    Document tableDoc = getPharmTable(response);
    return pharmaciesFromTable(tableDoc);
 }
-    public static void jConnect(){
-        try {
-            String itemName="пессарий";
-            String region="0";
-            String searchUrl=DataHandle.createSearchUrl(itemName,region);
+    public static List<Item> collectItems(String itemName, String regionNumber) throws IOException {
+            String searchUrl=DataHandle.createSearchUrl(itemName,regionNumber);
            List<Item> items= getItemsFromUrl(searchUrl);
-            System.out.println(items.size());
-        //   items.get(0).printItem();
-           for (Item item:items){
-               addPharmaToItem(item,region);
-           }
-               for (Item item:items){
-                item.printItem();
-               }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+          processItems(items,regionNumber);
+          return items;
+    }
+    private static void processItems(List<Item> items, String regionNumber) throws IOException {
+        for (Item item:items){
+            addPharmaToItem(item,regionNumber);
         }
     }
+
     public static void addPharmaToItem(Item item, String regionNumber ) throws IOException {
         int page=1;
         List<Pharmacy> pharmacies= new ArrayList<>();
        while (true){
            List<Pharmacy> newPharm=pharmaciesFromUrl(item.getLink(),page,regionNumber);
            if (newPharm.isEmpty()) break;
+           //System.out.println("Pharm size " +newPharm.size());
            pharmacies.addAll(newPharm);
            page++;
        }
@@ -131,7 +132,7 @@ public static List<Pharmacy> pharmaciesFromUrl(String url, int page, String regi
     }
 public static  List<Item> getItemsFromUrl(String searchUrl) throws IOException {
         List<Item> items= new ArrayList<>();
-        Document doc= Jsoup.connect(baseUrl+searchUrl).get();
+        Document doc= connect(baseUrl+searchUrl).get();
         Element table= getItemTable(doc);
         Elements rows= getItemRows(table);
         for (Element row:rows){
